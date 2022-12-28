@@ -1,0 +1,105 @@
+#!/bin/sh
+
+CMD_PRINT_OUT_MODE_TEXT="0x00 0x11 0x01 0x45"
+CMD_PIXEL_MODE_1PX="0x00 0x21 0x01 0xBC"
+CMD_PIXEL_MODE_2PX="0x00 0x21 0x03 0xB2"
+CMD_PIXEL_MODE_4PX="0x00 0x21 0x02 0xB5"
+CMD_RANGE_MODE_SHORT="0x00 0x61 0x01 0xE7"
+CMD_RANGE_MODE_LONG="0x00 0x61 0x03 0xE9"
+
+TTYPORT="/dev/ttyACM0"
+CMD_PIXEL_MODE="$CMD_PIXEL_MODE_1PX"
+CMD_RANGE_MODE="$CMD_RANGE_MODE_LONG"
+
+set_cmd() {
+    CMD="$1"
+    if [ -n "$CMD" ]; then
+        printf "%s" "$CMD" | xxd -r > "$TTYPORT"
+    fi
+}
+
+usage() {
+cat << EOF
+Usage: $0 [OPTIONS]...
+
+OPTIONS:
+    -P,--port PORT            Specify tty port
+    -p, --pixel PIXEL_MODE    Set Pixel mode(1, 2 or 4)
+    -r, --range RANGE_MODE    Set Range mode(short or long)
+    -i, --init-only           Only initialize the sensor and print tty device name
+    -h, --help                Show this usage
+EOF
+}
+
+while [ $# -ne 0 ]
+do
+    case "$1" in
+        "-P"|"--port")
+            TTYPORT="$2"
+            ;;
+
+        "-p"|"--pixel")
+            case "$2" in
+                "1")
+                    CMD_PIXEL_MODE="$CMD_PIXEL_MODE_1PX"
+                    ;;
+                "2")
+                    CMD_PIXEL_MODE="$CMD_PIXEL_MODE_2PX"
+                    ;;
+                "4")
+                    CMD_PIXEL_MODE="$CMD_PIXEL_MODE_4PX"
+                    ;;
+                *)
+                    printf "Invalid pixel mode: %s\n" "$2" 1>&2
+                    exit 1
+                    ;;
+            esac
+            shift
+            ;;
+
+        "-r"|"--range")
+            case "$2" in
+                "short")
+                    CMD_RANGE_MODE="$CMD_RANGE_MODE_SHORT"
+                    ;;
+                "long")
+                    CMD_RANGE_MODE="$CMD_RANGE_MODE_LONG"
+                    ;;
+                *)
+                    printf "Invalid range mode: %s\n" "$2" 1>&2
+                    exit 1
+                    ;;
+            esac
+            shift
+            ;;
+
+        "-i"|"--init-only")
+            INIT_ONLY=true
+            ;;
+
+        "-h"|"--help")
+            usage
+            exit 0
+            ;;
+    esac
+
+    shift
+done
+
+if [ ! -e "$TTYPORT" ]; then
+    printf "Invalid tty port: %s\n" "$TTYPORT" 1>&2
+    exit 1
+fi
+
+set_cmd "$CMD_PRINT_OUT_MODE_TEXT"
+set_cmd "$CMD_PIXEL_MODE"
+set_cmd "$CMD_RANGE_MODE"
+
+# Drop the first data
+head -n 1 "$TTYPORT" > /dev/null 2>&1
+
+if [ -n "$INIT_ONLY" ]; then
+    printf "%s\n" "$TTYPORT"
+else
+    cat "$TTYPORT"
+fi
